@@ -1,13 +1,9 @@
 ﻿  BMSys.cpp
-D:\Projects\FreeLancing\CPP\BMSys\BMSys\BMSys.cpp(52,42): warning C4309: 'argument': truncation of constant value
-D:\Projects\FreeLancing\CPP\BMSys\BMSys\BMSys.cpp(71,42): warning C4309: 'argument': truncation of constant value
-D:\Projects\FreeLancing\CPP\BMSys\BMSys\BMSys.cpp(77,65): warning C4309: 'argument': truncation of constant value
-D:\Projects\FreeLancing\CPP\BMSys\BMSys\BMSys.cpp(126,65): warning C4309: 'argument': truncation of constant value
 C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.39.33519\include\xutility(4537,18): warning C4244: '=': conversion from 'wchar_t' to 'char', possible loss of data
   (compiling source file 'BMSys.cpp')
   C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.39.33519\include\xutility(4537,18):
   the template instantiation context (the oldest one first) is
-  	D:\Projects\FreeLancing\CPP\BMSys\BMSys\BMSys.cpp(86,26):
+  	D:\Projects\FreeLancing\CPP\BMSys\BMSys\BMSys.cpp(92,26):
   	see reference to function template instantiation 'std::basic_string<char,std::char_traits<char>,std::allocator<char>>::basic_string<std::_String_iterator<std::_String_val<std::_Simple_types<_Elem>>>,0>(_Iter,_Iter,const _Alloc &)' being compiled
           with
           [
@@ -15,7 +11,7 @@ C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.39.3351
               _Iter=std::_String_iterator<std::_String_val<std::_Simple_types<wchar_t>>>,
               _Alloc=std::allocator<char>
           ]
-  		D:\Projects\FreeLancing\CPP\BMSys\BMSys\BMSys.cpp(86,26):
+  		D:\Projects\FreeLancing\CPP\BMSys\BMSys\BMSys.cpp(92,26):
   		see the first reference to 'std::basic_string<char,std::char_traits<char>,std::allocator<char>>::basic_string' in 'HandleLogin'
   	C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.39.33519\include\xstring(2600,17):
   	see reference to function template instantiation 'void std::basic_string<char,std::char_traits<char>,std::allocator<char>>::_Construct_from_iter<wchar_t*,wchar_t*,_Size_type>(_Iter,const _Sent,_Size)' being compiled

@@ -16,6 +16,11 @@
 HINSTANCE hInst;
 LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
 
+struct LoginSignupData {
+    HWND hUsername;
+    HWND hPassword;
+};
+
 void HandleLogin(HWND hwnd);
 void HandleSignup(HWND hwnd);
 void HandleCheckBalance(HWND hwnd);
@@ -48,8 +53,8 @@ void CreateLoginDialog(HWND hwnd) {
     CreateWindow(L"button", L"Login", WS_VISIBLE | WS_CHILD, 150, 150, 80, 25, hwnd, (HMENU)ID_LOGIN_BUTTON, hInst, NULL);
 
     // Store the handles for username and password fields in the window's user data
-    SetWindowLongPtr(hwnd, GWLP_USERDATA, (LONG_PTR)hUsername);
-    SetWindowLongPtr(hwnd, GWLP_USERDATA + sizeof(HWND), (LONG_PTR)hPassword);
+    LoginSignupData* data = new LoginSignupData{ hUsername, hPassword };
+    SetWindowLongPtr(hwnd, GWLP_USERDATA, (LONG_PTR)data);
 }
 
 void CreateSignupDialog(HWND hwnd) {
@@ -67,14 +72,15 @@ void CreateSignupDialog(HWND hwnd) {
     CreateWindow(L"button", L"Signup", WS_VISIBLE | WS_CHILD, 150, 150, 80, 25, hwnd, (HMENU)ID_SIGNUP_BUTTON, hInst, NULL);
 
     // Store the handles for username and password fields in the window's user data
-    SetWindowLongPtr(hwnd, GWLP_USERDATA, (LONG_PTR)hUsername);
-    SetWindowLongPtr(hwnd, GWLP_USERDATA + sizeof(HWND), (LONG_PTR)hPassword);
+    LoginSignupData* data = new LoginSignupData{ hUsername, hPassword };
+    SetWindowLongPtr(hwnd, GWLP_USERDATA, (LONG_PTR)data);
 }
 
 void HandleLogin(HWND hwnd) {
     // Retrieve the handles for username and password fields
-    HWND hUsername = (HWND)GetWindowLongPtr(hwnd, GWLP_USERDATA);
-    HWND hPassword = (HWND)GetWindowLongPtr(hwnd, GWLP_USERDATA + sizeof(HWND));
+    LoginSignupData* data = (LoginSignupData*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
+    HWND hUsername = data->hUsername;
+    HWND hPassword = data->hPassword;
 
     // Get the username and password entered by the user
     wchar_t username[50], password[50];
@@ -85,6 +91,12 @@ void HandleLogin(HWND hwnd) {
     std::wstring wUsername(username), wPassword(password);
     std::string sUsername(wUsername.begin(), wUsername.end());
     std::string sPassword(wPassword.begin(), wPassword.end());
+
+    // Check if username or password is empty
+    if (sUsername.empty() || sPassword.empty()) {
+        MessageBox(NULL, L"Username and password cannot be empty", L"Error", MB_OK);
+        return;
+    }
 
     // Open the database
     sqlite3* db;
@@ -122,8 +134,9 @@ void HandleLogin(HWND hwnd) {
 
 void HandleSignup(HWND hwnd) {
     // Retrieve the handles for username and password fields
-    HWND hUsername = (HWND)GetWindowLongPtr(hwnd, GWLP_USERDATA);
-    HWND hPassword = (HWND)GetWindowLongPtr(hwnd, GWLP_USERDATA + sizeof(HWND));
+    LoginSignupData* data = (LoginSignupData*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
+    HWND hUsername = data->hUsername;
+    HWND hPassword = data->hPassword;
 
     // Get the username and password entered by the user
     wchar_t username[50], password[50];
@@ -135,18 +148,46 @@ void HandleSignup(HWND hwnd) {
     std::string sUsername(wUsername.begin(), wUsername.end());
     std::string sPassword(wPassword.begin(), wPassword.end());
 
+    // Check if username or password is empty
+    if (sUsername.empty() || sPassword.empty()) {
+        MessageBox(NULL, L"Username and password cannot be empty", L"Error", MB_OK);
+        return;
+    }
+
     // Open the database
     sqlite3* db;
     sqlite3_open("bank.db", &db);
 
-    // Prepare the SQL statement
+    // Check if the username already exists
+    std::stringstream ssCheck;
+    ssCheck << "SELECT * FROM users WHERE username='" << sUsername << "';";
+    std::string sqlCheck = ssCheck.str();
+
+    sqlite3_stmt* stmtCheck;
+    int rc = sqlite3_prepare_v2(db, sqlCheck.c_str(), -1, &stmtCheck, 0);
+    if (rc != SQLITE_OK) {
+        MessageBox(NULL, L"Failed to execute query", L"Error", MB_OK);
+        sqlite3_close(db);
+        return;
+    }
+
+    rc = sqlite3_step(stmtCheck);
+    if (rc == SQLITE_ROW) {
+        MessageBox(NULL, L"Username already exists", L"Error", MB_OK);
+        sqlite3_finalize(stmtCheck);
+        sqlite3_close(db);
+        return;
+    }
+    sqlite3_finalize(stmtCheck);
+
+    // Prepare the SQL statement to insert new user
     std::stringstream ss;
     ss << "INSERT INTO users (username, password, balance) VALUES ('" << sUsername << "', '" << sPassword << "', 0.0);";
     std::string sql = ss.str();
 
     // Execute the SQL statement
     char* errMsg = 0;
-    int rc = sqlite3_exec(db, sql.c_str(), 0, 0, &errMsg);
+    rc = sqlite3_exec(db, sql.c_str(), 0, 0, &errMsg);
     if (rc != SQLITE_OK) {
         MessageBox(NULL, L"Failed to add user", L"Error", MB_OK);
         sqlite3_free(errMsg);
@@ -168,6 +209,7 @@ void HandleSignup(HWND hwnd) {
     // Redirect to login screen
     CreateLoginDialog(hwnd);
 }
+
 
 void HandleCheckBalance(HWND hwnd) {
     // Clear existing controls
