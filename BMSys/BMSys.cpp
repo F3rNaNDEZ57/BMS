@@ -19,6 +19,7 @@ LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
 struct LoginSignupData {
     HWND hUsername;
     HWND hPassword;
+    int userID;
 };
 
 void HandleLogin(HWND hwnd);
@@ -32,7 +33,7 @@ void CreateMainMenu(HWND hwnd);
 void ClearWindowControls(HWND hwnd); 
 void ClearScreen(HWND hwnd);
 
-
+// Cover entier screen with white plane after transition 
 void ClearScreen(HWND hwnd) {
     HDC hdc = GetDC(hwnd);
     RECT rect;
@@ -42,7 +43,7 @@ void ClearScreen(HWND hwnd) {
     ReleaseDC(hwnd, hdc);
 }
 
-
+// Clear all the prevoius components in previous screen
 void ClearWindowControls(HWND hwnd) {
     HWND hChild = GetWindow(hwnd, GW_CHILD);
     while (hChild) {
@@ -121,7 +122,7 @@ void HandleLogin(HWND hwnd) {
 
     // Prepare the SQL statement
     std::stringstream ss;
-    ss << "SELECT * FROM users WHERE username='" << sUsername << "' AND password='" << sPassword << "';";
+    ss << "SELECT id FROM users WHERE username='" << sUsername << "' AND password='" << sPassword << "';";
     std::string sql = ss.str();
 
     // Execute the SQL statement
@@ -136,6 +137,8 @@ void HandleLogin(HWND hwnd) {
     // Check if a matching user was found
     rc = sqlite3_step(stmt);
     if (rc == SQLITE_ROW) {
+        int userID = sqlite3_column_int(stmt, 0);
+        data->userID = userID;  // Store the user ID
         MessageBox(NULL, L"Login successful!", L"Success", MB_OK);
         // Transition to main menu screen
         CreateMainMenu(hwnd);
@@ -148,6 +151,7 @@ void HandleLogin(HWND hwnd) {
     sqlite3_finalize(stmt);
     sqlite3_close(db);
 }
+
 
 void HandleSignup(HWND hwnd) {
     // Retrieve the handles for username and password fields
@@ -232,9 +236,50 @@ void HandleCheckBalance(HWND hwnd) {
     // Clear existing controls
     ClearWindowControls(hwnd);
 
-    // Create controls for checking balance
-    // Implement the functionality using SQLite to check and display the balance
+    // Retrieve the user ID from the window's user data
+    LoginSignupData* data = (LoginSignupData*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
+    int userID = data->userID;
+
+    // Open the database
+    sqlite3* db;
+    sqlite3_open("bank.db", &db);
+
+    // Prepare the SQL statement
+    std::stringstream ss;
+    ss << "SELECT balance FROM users WHERE id=" << userID << ";";
+    std::string sql = ss.str();
+
+    // Execute the SQL statement
+    sqlite3_stmt* stmt;
+    int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, 0);
+    if (rc != SQLITE_OK) {
+        MessageBox(NULL, L"Failed to execute query", L"Error", MB_OK);
+        sqlite3_close(db);
+        return;
+    }
+
+    // Check if a matching user was found and get the balance
+    rc = sqlite3_step(stmt);
+    if (rc == SQLITE_ROW) {
+        double balance = sqlite3_column_double(stmt, 0);
+
+        // Display the balance
+        std::wstringstream ws;
+        ws << L"Your balance is: $" << balance;
+        MessageBox(NULL, ws.str().c_str(), L"Balance", MB_OK);
+    }
+    else {
+        MessageBox(NULL, L"Failed to retrieve balance", L"Error", MB_OK);
+    }
+
+    // Clean up
+    sqlite3_finalize(stmt);
+    sqlite3_close(db);
+
+    // Redirect to main menu
+    CreateMainMenu(hwnd);
 }
+
 
 void HandleTransfer(HWND hwnd) {
     // Clear existing controls
