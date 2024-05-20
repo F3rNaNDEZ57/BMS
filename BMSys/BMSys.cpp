@@ -251,6 +251,8 @@ void HandleCheckBalance(HWND hwnd) {
     CreateWindow(L"button", L"Exit", WS_VISIBLE | WS_CHILD, 150, 100, 80, 30, hwnd, (HMENU)ID_EXIT, hInst, NULL);
 }
 
+
+
 void HandleTransfer(HWND hwnd) {
     LoginSignupData* data = (LoginSignupData*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
     HWND hRecipient = data->hUsername;
@@ -326,6 +328,19 @@ void HandleTransfer(HWND hwnd) {
         return;
     }
 
+    // Insert the transaction details into the transactions table
+    std::stringstream ssInsertTransaction;
+    ssInsertTransaction << "INSERT INTO transactions (from_user, to_user, amount) VALUES ("
+        << currentUser.userID << ", " << sRecipient << ", " << dAmount << ");";
+    std::string sqlInsertTransaction = ssInsertTransaction.str();
+    rc = sqlite3_exec(db, sqlInsertTransaction.c_str(), 0, 0, 0);
+    if (rc != SQLITE_OK) {
+        sqlite3_exec(db, "ROLLBACK;", 0, 0, 0);
+        MessageBox(NULL, L"Failed to record transaction", L"Error", MB_OK);
+        sqlite3_close(db);
+        return;
+    }
+
     sqlite3_exec(db, "COMMIT;", 0, 0, 0);
 
     currentUser.balance -= dAmount;
@@ -336,6 +351,7 @@ void HandleTransfer(HWND hwnd) {
 
     CreateMainMenu(hwnd);
 }
+
 
 void HandleListAccounts(HWND hwnd) {
     ClearWindowControls(hwnd);
@@ -422,7 +438,7 @@ void HandleLogs(HWND hwnd) {
         double amount = sqlite3_column_double(stmt, 3);
 
         std::wstringstream ws;
-        ws << L"Transaction ID: " << id << L" | From: " << fromUser << L" | To: " << toUser << L" | Amount: $" << amount;
+        ws << L" | From: " << fromUser << L" | To: " << toUser << L" | Amount: $" << amount;
         CreateWindow(L"static", ws.str().c_str(), WS_VISIBLE | WS_CHILD, 10, y, 480, 20, hwnd, NULL, hInst, NULL);
         y += 30;
     }
@@ -433,6 +449,8 @@ void HandleLogs(HWND hwnd) {
     CreateWindow(L"button", L"Back", WS_VISIBLE | WS_CHILD, 50, y, 80, 30, hwnd, (HMENU)ID_BACK, hInst, NULL);
     CreateWindow(L"button", L"Exit", WS_VISIBLE | WS_CHILD, 150, y, 80, 30, hwnd, (HMENU)ID_EXIT, hInst, NULL);
 }
+
+
 
 void CreateMainMenu(HWND hwnd) {
     ClearWindowControls(hwnd);
@@ -464,6 +482,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     return (int)msg.wParam;
 }
 
+
 void InitializeDatabase() {
     sqlite3* db;
     char* errMsg = 0;
@@ -493,6 +512,8 @@ void InitializeDatabase() {
     }
     sqlite3_close(db);
 }
+
+
 
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     switch (msg) {
