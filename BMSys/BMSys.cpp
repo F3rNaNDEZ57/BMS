@@ -9,10 +9,12 @@
 #define ID_SIGNUP_BUTTON 7
 #define ID_CHECK_BALANCE 3
 #define ID_TRANSFER 4
+#define ID_TRANSFER_MONEY 11
 #define ID_NOTICE 5
 #define ID_MENU 8
 #define ID_EXIT 9
 #define ID_BACK 10
+#define ID_LIST_ACC 12
 
 HINSTANCE hInst;
 LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
@@ -20,8 +22,14 @@ LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
 struct LoginSignupData {
     HWND hUsername;
     HWND hPassword;
-    int userID;
 };
+
+struct UserData {
+    int userID;
+    double balance;
+};
+
+UserData currentUser = { -1, 0.0 };  // Initialize with default values
 
 void HandleLogin(HWND hwnd);
 void HandleSignup(HWND hwnd);
@@ -31,11 +39,12 @@ void HandleNotice(HWND hwnd);
 void CreateLoginDialog(HWND hwnd);
 void CreateSignupDialog(HWND hwnd);
 void CreateMainMenu(HWND hwnd);
-void ClearWindowControls(HWND hwnd); 
+void ClearWindowControls(HWND hwnd);
 void ClearScreen(HWND hwnd);
 void CreateInitialScreen(HWND hwnd);
+void CreateTransferDialog(HWND hwnd);
 
-// Cover entier screen with white plane after transition 
+// Cover entire screen with white plane after transition
 void ClearScreen(HWND hwnd) {
     HDC hdc = GetDC(hwnd);
     RECT rect;
@@ -45,7 +54,7 @@ void ClearScreen(HWND hwnd) {
     ReleaseDC(hwnd, hdc);
 }
 
-// Clear all the prevoius components in previous screen
+// Clear all the previous components in previous screen
 void ClearWindowControls(HWND hwnd) {
     HWND hChild = GetWindow(hwnd, GW_CHILD);
     while (hChild) {
@@ -61,12 +70,13 @@ void CreateInitialScreen(HWND hwnd) {
     // Clear existing controls
     ClearWindowControls(hwnd);
 
+    // Reset current user
+    currentUser = { -1, 0.0 };
+
     // Create Login and Signup buttons
     CreateWindow(L"button", L"Login", WS_VISIBLE | WS_CHILD, 50, 50, 100, 30, hwnd, (HMENU)ID_LOGIN, hInst, NULL);
     CreateWindow(L"button", L"Signup", WS_VISIBLE | WS_CHILD, 200, 50, 100, 30, hwnd, (HMENU)ID_SIGNUP, hInst, NULL);
 }
-
-
 
 void CreateLoginDialog(HWND hwnd) {
     // Clear existing controls
@@ -106,6 +116,36 @@ void CreateSignupDialog(HWND hwnd) {
     SetWindowLongPtr(hwnd, GWLP_USERDATA, (LONG_PTR)data);
 }
 
+void CreateTransferDialog(HWND hwnd) {
+    // Clear existing controls
+    ClearWindowControls(hwnd);
+
+    // Display user's account number and balance
+    std::wstringstream ws;
+    ws << L"Account Number: " << currentUser.userID << L"\nBalance: $" << currentUser.balance;
+    CreateWindow(L"static", ws.str().c_str(), WS_VISIBLE | WS_CHILD, 50, 10, 250, 50, hwnd, NULL, hInst, NULL);
+
+    // Create input fields for recipient account number and amount
+    CreateWindow(L"static", L"Recipient Account Number:", WS_VISIBLE | WS_CHILD, 50, 70, 200, 25, hwnd, NULL, hInst, NULL);
+    HWND hRecipient = CreateWindow(L"edit", L"", WS_VISIBLE | WS_CHILD | WS_BORDER, 250, 70, 150, 25, hwnd, NULL, hInst, NULL);
+
+    CreateWindow(L"static", L"Amount:", WS_VISIBLE | WS_CHILD, 50, 110, 80, 25, hwnd, NULL, hInst, NULL);
+    HWND hAmount = CreateWindow(L"edit", L"", WS_VISIBLE | WS_CHILD | WS_BORDER, 250, 110, 150, 25, hwnd, NULL, hInst, NULL);
+
+    // Create transfer button
+    CreateWindow(L"button", L"Transfer", WS_VISIBLE | WS_CHILD, 150, 150, 80, 25, hwnd, (HMENU)ID_TRANSFER_MONEY, hInst, NULL);
+
+    // Create available accounts button
+    CreateWindow(L"button", L"Available Accounts", WS_VISIBLE | WS_CHILD, 250, 150, 150, 25, hwnd, (HMENU)ID_LIST_ACC, hInst, NULL);
+
+    // Add "Back" and "Exit" buttons
+    CreateWindow(L"button", L"Back", WS_VISIBLE | WS_CHILD, 50, 190, 80, 30, hwnd, (HMENU)ID_BACK, hInst, NULL);
+    CreateWindow(L"button", L"Exit", WS_VISIBLE | WS_CHILD, 150, 190, 80, 30, hwnd, (HMENU)ID_EXIT, hInst, NULL);
+
+    // Store the handles for recipient and amount fields in the window's user data
+    SetWindowLongPtr(hwnd, GWLP_USERDATA, (LONG_PTR)new LoginSignupData{ hRecipient, hAmount });
+}
+
 void HandleLogin(HWND hwnd) {
     // Retrieve the handles for username and password fields
     LoginSignupData* data = (LoginSignupData*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
@@ -134,7 +174,7 @@ void HandleLogin(HWND hwnd) {
 
     // Prepare the SQL statement
     std::stringstream ss;
-    ss << "SELECT id FROM users WHERE username='" << sUsername << "' AND password='" << sPassword << "';";
+    ss << "SELECT id, balance FROM users WHERE username='" << sUsername << "' AND password='" << sPassword << "';";
     std::string sql = ss.str();
 
     // Execute the SQL statement
@@ -149,8 +189,8 @@ void HandleLogin(HWND hwnd) {
     // Check if a matching user was found
     rc = sqlite3_step(stmt);
     if (rc == SQLITE_ROW) {
-        int userID = sqlite3_column_int(stmt, 0);
-        data->userID = userID;  // Store the user ID
+        currentUser.userID = sqlite3_column_int(stmt, 0);
+        currentUser.balance = sqlite3_column_double(stmt, 1);
         MessageBox(NULL, L"Login successful!", L"Success", MB_OK);
         // Transition to main menu screen
         CreateMainMenu(hwnd);
@@ -163,7 +203,6 @@ void HandleLogin(HWND hwnd) {
     sqlite3_finalize(stmt);
     sqlite3_close(db);
 }
-
 
 void HandleSignup(HWND hwnd) {
     // Retrieve the handles for username and password fields
@@ -243,25 +282,133 @@ void HandleSignup(HWND hwnd) {
     CreateLoginDialog(hwnd);
 }
 
-
 void HandleCheckBalance(HWND hwnd) {
     // Clear existing controls
     ClearWindowControls(hwnd);
 
-    // Retrieve the user ID from the window's user data
+    // Display the user's balance
+    std::wstringstream ws;
+    ws << L"Your balance is: $" << currentUser.balance;
+    CreateWindow(L"static", ws.str().c_str(), WS_VISIBLE | WS_CHILD, 50, 50, 200, 30, hwnd, NULL, hInst, NULL);
+
+    // Add "Back" and "Exit" buttons
+    CreateWindow(L"button", L"Back", WS_VISIBLE | WS_CHILD, 50, 100, 80, 30, hwnd, (HMENU)ID_BACK, hInst, NULL);
+    CreateWindow(L"button", L"Exit", WS_VISIBLE | WS_CHILD, 150, 100, 80, 30, hwnd, (HMENU)ID_EXIT, hInst, NULL);
+}
+
+void HandleTransfer(HWND hwnd) {
+    // Retrieve the handles for recipient and amount fields
     LoginSignupData* data = (LoginSignupData*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
-    int userID = data->userID;
+    HWND hRecipient = data->hUsername;
+    HWND hAmount = data->hPassword;
+
+    // Get the recipient account number and amount entered by the user
+    wchar_t recipient[50], amount[50];
+    GetWindowTextW(hRecipient, recipient, 50);
+    GetWindowTextW(hAmount, amount, 50);
+
+    // Convert recipient and amount to std::string and double respectively
+    std::wstring wRecipient(recipient), wAmount(amount);
+    std::string sRecipient(wRecipient.begin(), wRecipient.end());
+    double dAmount = std::stod(wAmount);
+
+    // Check if recipient or amount is empty or amount is zero or negative
+    if (sRecipient.empty() || dAmount <= 0) {
+        MessageBox(NULL, L"Recipient and amount cannot be empty or negative", L"Error", MB_OK);
+        return;
+    }
+
+    // Open the database
+    sqlite3* db;
+    if (sqlite3_open("bank.db", &db) != SQLITE_OK) {
+        MessageBox(NULL, L"Failed to open database", L"Error", MB_OK);
+        return;
+    }
+
+    // Check if the recipient account exists
+    std::stringstream ssCheck;
+    ssCheck << "SELECT id FROM users WHERE id=" << sRecipient << ";";
+    std::string sqlCheck = ssCheck.str();
+
+    sqlite3_stmt* stmtCheck;
+    int rc = sqlite3_prepare_v2(db, sqlCheck.c_str(), -1, &stmtCheck, 0);
+    if (rc != SQLITE_OK) {
+        MessageBox(NULL, L"Failed to execute query", L"Error", MB_OK);
+        sqlite3_close(db);
+        return;
+    }
+
+    rc = sqlite3_step(stmtCheck);
+    if (rc != SQLITE_ROW) {
+        MessageBox(NULL, L"Recipient account does not exist", L"Error", MB_OK);
+        sqlite3_finalize(stmtCheck);
+        sqlite3_close(db);
+        return;
+    }
+    sqlite3_finalize(stmtCheck);
+
+    // Check the user's balance
+    if (currentUser.balance < dAmount) {
+        MessageBox(NULL, L"Insufficient balance", L"Error", MB_OK);
+        sqlite3_close(db);
+        return;
+    }
+
+    // Begin a transaction
+    sqlite3_exec(db, "BEGIN TRANSACTION;", 0, 0, 0);
+
+    // Deduct the amount from the user's balance
+    std::stringstream ssDeduct;
+    ssDeduct << "UPDATE users SET balance = balance - " << dAmount << " WHERE id = " << currentUser.userID << ";";
+    std::string sqlDeduct = ssDeduct.str();
+    rc = sqlite3_exec(db, sqlDeduct.c_str(), 0, 0, 0);
+    if (rc != SQLITE_OK) {
+        sqlite3_exec(db, "ROLLBACK;", 0, 0, 0);
+        MessageBox(NULL, L"Failed to update balance", L"Error", MB_OK);
+        sqlite3_close(db);
+        return;
+    }
+
+    // Add the amount to the recipient's balance
+    std::stringstream ssAdd;
+    ssAdd << "UPDATE users SET balance = balance + " << dAmount << " WHERE id = " << sRecipient << ";";
+    std::string sqlAdd = ssAdd.str();
+    rc = sqlite3_exec(db, sqlAdd.c_str(), 0, 0, 0);
+    if (rc != SQLITE_OK) {
+        sqlite3_exec(db, "ROLLBACK;", 0, 0, 0);
+        MessageBox(NULL, L"Failed to update recipient's balance", L"Error", MB_OK);
+        sqlite3_close(db);
+        return;
+    }
+
+    // Commit the transaction
+    sqlite3_exec(db, "COMMIT;", 0, 0, 0);
+
+    // Update the user's balance
+    currentUser.balance -= dAmount;
+
+    // Clean up
+    sqlite3_close(db);
+
+    MessageBox(NULL, L"Transfer successful", L"Success", MB_OK);
+
+    // Redirect to main menu
+    CreateMainMenu(hwnd);
+}
+
+void HandleListAccounts(HWND hwnd) {
+    // Clear existing controls
+    ClearWindowControls(hwnd);
 
     // Open the database
     sqlite3* db;
     sqlite3_open("bank.db", &db);
 
-    // Prepare the SQL statement
+    // Retrieve the list of available accounts
     std::stringstream ss;
-    ss << "SELECT balance FROM users WHERE id=" << userID << ";";
+    ss << "SELECT id, username FROM users;";
     std::string sql = ss.str();
 
-    // Execute the SQL statement
     sqlite3_stmt* stmt;
     int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, 0);
     if (rc != SQLITE_OK) {
@@ -270,45 +417,30 @@ void HandleCheckBalance(HWND hwnd) {
         return;
     }
 
-    // Check if a matching user was found and get the balance
-    rc = sqlite3_step(stmt);
-    if (rc == SQLITE_ROW) {
-        double balance = sqlite3_column_double(stmt, 0);
+    // Create a dropdown list to display available accounts
+    HWND hDropdown = CreateWindow(L"combobox", NULL, WS_VISIBLE | WS_CHILD | CBS_DROPDOWN, 50, 50, 250, 100, hwnd, NULL, hInst, NULL);
 
-        // Display the balance
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        int accountID = sqlite3_column_int(stmt, 0);
+        const unsigned char* username = sqlite3_column_text(stmt, 1);
+
+        // Convert unsigned char* to wchar_t*
+        std::wstring wUsername;
+        for (int i = 0; username[i] != '\0'; ++i) {
+            wUsername += (wchar_t)username[i];
+        }
+
         std::wstringstream ws;
-        ws << L"Your balance is: $" << balance;
-        CreateWindow(L"static", ws.str().c_str(), WS_VISIBLE | WS_CHILD, 50, 50, 200, 30, hwnd, NULL, hInst, NULL);
-    }
-    else {
-        MessageBox(NULL, L"Failed to retrieve balance", L"Error", MB_OK);
+        ws << L"ID: " << accountID << L" - " << wUsername;
+        SendMessage(hDropdown, CB_ADDSTRING, 0, (LPARAM)ws.str().c_str());
     }
 
-    // Clean up
     sqlite3_finalize(stmt);
     sqlite3_close(db);
 
     // Add "Back" and "Exit" buttons
-    CreateWindow(L"button", L"Back", WS_VISIBLE | WS_CHILD, 50, 100, 80, 30, hwnd, (HMENU)ID_BACK, hInst, NULL);
-    CreateWindow(L"button", L"Exit", WS_VISIBLE | WS_CHILD, 150, 100, 80, 30, hwnd, (HMENU)ID_EXIT, hInst, NULL);
-}
-
-
-
-void HandleTransfer(HWND hwnd) {
-    // Clear existing controls
-    ClearWindowControls(hwnd);
-
-    // Create controls for transferring money
-    // Implement the transfer functionality using SQLite to update balances
-}
-
-void HandleNotice(HWND hwnd) {
-    // Clear existing controls
-    ClearWindowControls(hwnd);
-
-    // Create controls for displaying notices
-    // Implement functionality to display fixed rates and other notices
+    CreateWindow(L"button", L"Back", WS_VISIBLE | WS_CHILD, 50, 150, 80, 30, hwnd, (HMENU)ID_BACK, hInst, NULL);
+    CreateWindow(L"button", L"Exit", WS_VISIBLE | WS_CHILD, 150, 150, 80, 30, hwnd, (HMENU)ID_EXIT, hInst, NULL);
 }
 
 void CreateMainMenu(HWND hwnd) {
@@ -398,10 +530,13 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             HandleCheckBalance(hwnd);
             break;
         case ID_TRANSFER:
+            CreateTransferDialog(hwnd);
+            break;
+        case ID_TRANSFER_MONEY:
             HandleTransfer(hwnd);
             break;
-        case ID_NOTICE:
-            HandleNotice(hwnd);
+        case ID_LIST_ACC:
+            HandleListAccounts(hwnd);
             break;
         case ID_MENU:
             CreateInitialScreen(hwnd);
@@ -422,4 +557,3 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     }
     return 0;
 }
-
