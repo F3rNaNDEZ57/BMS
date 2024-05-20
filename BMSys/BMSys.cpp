@@ -12,6 +12,7 @@
 #define ID_NOTICE 5
 #define ID_MENU 8
 #define ID_EXIT 9
+#define ID_BACK 10
 
 HINSTANCE hInst;
 LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
@@ -32,6 +33,7 @@ void CreateSignupDialog(HWND hwnd);
 void CreateMainMenu(HWND hwnd);
 void ClearWindowControls(HWND hwnd); 
 void ClearScreen(HWND hwnd);
+void CreateInitialScreen(HWND hwnd);
 
 // Cover entier screen with white plane after transition 
 void ClearScreen(HWND hwnd) {
@@ -52,6 +54,16 @@ void ClearWindowControls(HWND hwnd) {
     }
     ClearScreen(hwnd);
     InvalidateRect(hwnd, NULL, TRUE);
+}
+
+// Create the login and signup screen
+void CreateInitialScreen(HWND hwnd) {
+    // Clear existing controls
+    ClearWindowControls(hwnd);
+
+    // Create Login and Signup buttons
+    CreateWindow(L"button", L"Login", WS_VISIBLE | WS_CHILD, 50, 50, 100, 30, hwnd, (HMENU)ID_LOGIN, hInst, NULL);
+    CreateWindow(L"button", L"Signup", WS_VISIBLE | WS_CHILD, 200, 50, 100, 30, hwnd, (HMENU)ID_SIGNUP, hInst, NULL);
 }
 
 
@@ -266,7 +278,7 @@ void HandleCheckBalance(HWND hwnd) {
         // Display the balance
         std::wstringstream ws;
         ws << L"Your balance is: $" << balance;
-        MessageBox(NULL, ws.str().c_str(), L"Balance", MB_OK);
+        CreateWindow(L"static", ws.str().c_str(), WS_VISIBLE | WS_CHILD, 50, 50, 200, 30, hwnd, NULL, hInst, NULL);
     }
     else {
         MessageBox(NULL, L"Failed to retrieve balance", L"Error", MB_OK);
@@ -276,9 +288,11 @@ void HandleCheckBalance(HWND hwnd) {
     sqlite3_finalize(stmt);
     sqlite3_close(db);
 
-    // Redirect to main menu
-    CreateMainMenu(hwnd);
+    // Add "Back" and "Exit" buttons
+    CreateWindow(L"button", L"Back", WS_VISIBLE | WS_CHILD, 50, 100, 80, 30, hwnd, (HMENU)ID_BACK, hInst, NULL);
+    CreateWindow(L"button", L"Exit", WS_VISIBLE | WS_CHILD, 150, 100, 80, 30, hwnd, (HMENU)ID_EXIT, hInst, NULL);
 }
+
 
 
 void HandleTransfer(HWND hwnd) {
@@ -363,8 +377,7 @@ void InitializeDatabase() {
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     switch (msg) {
     case WM_CREATE:
-        CreateWindow(L"button", L"Login", WS_VISIBLE | WS_CHILD, 50, 50, 100, 30, hwnd, (HMENU)ID_LOGIN, hInst, NULL);
-        CreateWindow(L"button", L"Signup", WS_VISIBLE | WS_CHILD, 200, 50, 100, 30, hwnd, (HMENU)ID_SIGNUP, hInst, NULL);
+        CreateInitialScreen(hwnd);
         InitializeDatabase();
         break;
     case WM_COMMAND:
@@ -391,6 +404,9 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             HandleNotice(hwnd);
             break;
         case ID_MENU:
+            CreateInitialScreen(hwnd);
+            break;
+        case ID_BACK:
             CreateMainMenu(hwnd);
             break;
         case ID_EXIT:
@@ -406,3 +422,4 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     }
     return 0;
 }
+
