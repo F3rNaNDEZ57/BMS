@@ -12,6 +12,7 @@
 #define ID_NOTICE 5
 #define ID_MENU 8
 #define ID_EXIT 9
+#define ID_BACK 10
 
 HINSTANCE hInst;
 LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
@@ -19,6 +20,7 @@ LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
 struct LoginSignupData {
     HWND hUsername;
     HWND hPassword;
+    int userID;
 };
 
 void HandleLogin(HWND hwnd);
@@ -31,8 +33,9 @@ void CreateSignupDialog(HWND hwnd);
 void CreateMainMenu(HWND hwnd);
 void ClearWindowControls(HWND hwnd); 
 void ClearScreen(HWND hwnd);
+void CreateInitialScreen(HWND hwnd);
 
-
+// Cover entier screen with white plane after transition 
 void ClearScreen(HWND hwnd) {
     HDC hdc = GetDC(hwnd);
     RECT rect;
@@ -42,7 +45,7 @@ void ClearScreen(HWND hwnd) {
     ReleaseDC(hwnd, hdc);
 }
 
-
+// Clear all the prevoius components in previous screen
 void ClearWindowControls(HWND hwnd) {
     HWND hChild = GetWindow(hwnd, GW_CHILD);
     while (hChild) {
@@ -51,6 +54,16 @@ void ClearWindowControls(HWND hwnd) {
     }
     ClearScreen(hwnd);
     InvalidateRect(hwnd, NULL, TRUE);
+}
+
+// Create the login and signup screen
+void CreateInitialScreen(HWND hwnd) {
+    // Clear existing controls
+    ClearWindowControls(hwnd);
+
+    // Create Login and Signup buttons
+    CreateWindow(L"button", L"Login", WS_VISIBLE | WS_CHILD, 50, 50, 100, 30, hwnd, (HMENU)ID_LOGIN, hInst, NULL);
+    CreateWindow(L"button", L"Signup", WS_VISIBLE | WS_CHILD, 200, 50, 100, 30, hwnd, (HMENU)ID_SIGNUP, hInst, NULL);
 }
 
 
@@ -121,7 +134,7 @@ void HandleLogin(HWND hwnd) {
 
     // Prepare the SQL statement
     std::stringstream ss;
-    ss << "SELECT * FROM users WHERE username='" << sUsername << "' AND password='" << sPassword << "';";
+    ss << "SELECT id FROM users WHERE username='" << sUsername << "' AND password='" << sPassword << "';";
     std::string sql = ss.str();
 
     // Execute the SQL statement
@@ -136,6 +149,8 @@ void HandleLogin(HWND hwnd) {
     // Check if a matching user was found
     rc = sqlite3_step(stmt);
     if (rc == SQLITE_ROW) {
+        int userID = sqlite3_column_int(stmt, 0);
+        data->userID = userID;  // Store the user ID
         MessageBox(NULL, L"Login successful!", L"Success", MB_OK);
         // Transition to main menu screen
         CreateMainMenu(hwnd);
@@ -148,6 +163,7 @@ void HandleLogin(HWND hwnd) {
     sqlite3_finalize(stmt);
     sqlite3_close(db);
 }
+
 
 void HandleSignup(HWND hwnd) {
     // Retrieve the handles for username and password fields
@@ -232,9 +248,52 @@ void HandleCheckBalance(HWND hwnd) {
     // Clear existing controls
     ClearWindowControls(hwnd);
 
-    // Create controls for checking balance
-    // Implement the functionality using SQLite to check and display the balance
+    // Retrieve the user ID from the window's user data
+    LoginSignupData* data = (LoginSignupData*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
+    int userID = data->userID;
+
+    // Open the database
+    sqlite3* db;
+    sqlite3_open("bank.db", &db);
+
+    // Prepare the SQL statement
+    std::stringstream ss;
+    ss << "SELECT balance FROM users WHERE id=" << userID << ";";
+    std::string sql = ss.str();
+
+    // Execute the SQL statement
+    sqlite3_stmt* stmt;
+    int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, 0);
+    if (rc != SQLITE_OK) {
+        MessageBox(NULL, L"Failed to execute query", L"Error", MB_OK);
+        sqlite3_close(db);
+        return;
+    }
+
+    // Check if a matching user was found and get the balance
+    rc = sqlite3_step(stmt);
+    if (rc == SQLITE_ROW) {
+        double balance = sqlite3_column_double(stmt, 0);
+
+        // Display the balance
+        std::wstringstream ws;
+        ws << L"Your balance is: $" << balance;
+        CreateWindow(L"static", ws.str().c_str(), WS_VISIBLE | WS_CHILD, 50, 50, 200, 30, hwnd, NULL, hInst, NULL);
+    }
+    else {
+        MessageBox(NULL, L"Failed to retrieve balance", L"Error", MB_OK);
+    }
+
+    // Clean up
+    sqlite3_finalize(stmt);
+    sqlite3_close(db);
+
+    // Add "Back" and "Exit" buttons
+    CreateWindow(L"button", L"Back", WS_VISIBLE | WS_CHILD, 50, 100, 80, 30, hwnd, (HMENU)ID_BACK, hInst, NULL);
+    CreateWindow(L"button", L"Exit", WS_VISIBLE | WS_CHILD, 150, 100, 80, 30, hwnd, (HMENU)ID_EXIT, hInst, NULL);
 }
+
+
 
 void HandleTransfer(HWND hwnd) {
     // Clear existing controls
@@ -318,8 +377,7 @@ void InitializeDatabase() {
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     switch (msg) {
     case WM_CREATE:
-        CreateWindow(L"button", L"Login", WS_VISIBLE | WS_CHILD, 50, 50, 100, 30, hwnd, (HMENU)ID_LOGIN, hInst, NULL);
-        CreateWindow(L"button", L"Signup", WS_VISIBLE | WS_CHILD, 200, 50, 100, 30, hwnd, (HMENU)ID_SIGNUP, hInst, NULL);
+        CreateInitialScreen(hwnd);
         InitializeDatabase();
         break;
     case WM_COMMAND:
@@ -346,6 +404,9 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             HandleNotice(hwnd);
             break;
         case ID_MENU:
+            CreateInitialScreen(hwnd);
+            break;
+        case ID_BACK:
             CreateMainMenu(hwnd);
             break;
         case ID_EXIT:
@@ -361,3 +422,4 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     }
     return 0;
 }
+
