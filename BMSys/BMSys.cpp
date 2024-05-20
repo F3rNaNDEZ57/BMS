@@ -29,6 +29,19 @@ void HandleNotice(HWND hwnd);
 void CreateLoginDialog(HWND hwnd);
 void CreateSignupDialog(HWND hwnd);
 void CreateMainMenu(HWND hwnd);
+void ClearWindowControls(HWND hwnd); 
+void ClearScreen(HWND hwnd);
+
+
+void ClearScreen(HWND hwnd) {
+    HDC hdc = GetDC(hwnd);
+    RECT rect;
+    GetClientRect(hwnd, &rect);
+    HBRUSH hBrush = (HBRUSH)GetStockObject(WHITE_BRUSH);
+    FillRect(hdc, &rect, hBrush);
+    ReleaseDC(hwnd, hdc);
+}
+
 
 void ClearWindowControls(HWND hwnd) {
     HWND hChild = GetWindow(hwnd, GW_CHILD);
@@ -36,7 +49,11 @@ void ClearWindowControls(HWND hwnd) {
         DestroyWindow(hChild);
         hChild = GetWindow(hwnd, GW_CHILD);
     }
+    ClearScreen(hwnd);
+    InvalidateRect(hwnd, NULL, TRUE);
 }
+
+
 
 void CreateLoginDialog(HWND hwnd) {
     // Clear existing controls
